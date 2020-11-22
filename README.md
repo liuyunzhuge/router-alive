@@ -1,2 +1,2 @@
 # router-alive
-根据route历史来管理router-view实例的alive组件。
+根据route历史来管理router-view实例的alive组件。它是结合对keep-alive和vue-router源码的理解写出来，保留了keep-alive三个配置属性，来控制一些不需要alive的组件，同时增加了一个新的`testRoute`属性，来支持按照路由决定是否该被alive的组件。keep-alive基本上会把渲染过的组件无条件的缓存起，router-alive只会保留根据浏览历史来维持存活的router-view组件实例，更能满足实际应用场景，尤其适合web app的场景当中。
