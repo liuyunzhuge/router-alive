@@ -1,5 +1,6 @@
 import Component from './component'
 import { resolveQuery, parsePath, extend } from './utils'
+import messager from './messager'
 
 function _createKey(location) {
     return String(Date.now()).substring(7) + (Math.random(10000, 9999) * 10000 | 0)
@@ -38,14 +39,12 @@ export default {
 
         let replace = router.history.replace
         router.history.replace = function (raw, onComplete, onAbort) {
-            let location = typeof raw === 'string' ? { path: raw } : raw
-            let current = router.history.current
-            if (current && current.query[keyName]) {
-                location.query = location.query || {}
-                location.query[keyName] = current.query[keyName]
-            }
-            return replace.apply(this, [location, onComplete, onAbort])
+            messager.setReplace()
+            return replace.apply(this, [raw, onComplete, function(...args) {
+                messager.reset()
+                return onAbort.call(this, ...args)
+            }])
         }
-        Vue.component(componentName, Component({ componentName, keyName, storageKey }))
+        Vue.component(componentName, Component({ componentName, keyName, storageKey, messager }))
     }
 }

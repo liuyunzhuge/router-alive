@@ -23,16 +23,19 @@ function matches(pattern, name) {
 }
 
 function saveHistory() {
-  window.sessionStorage.setItem(this.settings.storageKey, JSON.stringify(this.history))
+  const { settings, history } = this
+  window.sessionStorage.setItem(settings.storageKey, JSON.stringify(history))
 }
 
 function clearArrow() {
-  if (!this.history[this.hisPointer]) return
-  this.history[this.hisPointer] = this.history[this.hisPointer].replace(RIGHT_ARROW, '')
+  const { settings, history, hisPointer } = this
+  if (!history[hisPointer]) return
+  history[hisPointer] = history[hisPointer].replace(RIGHT_ARROW, '')
 }
 
 function appendArrow() {
-  this.history[this.hisPointer] = RIGHT_ARROW + this.history[this.hisPointer]
+  const { settings, history, hisPointer } = this
+  history[hisPointer] = RIGHT_ARROW + history[hisPointer]
 }
 
 function setHistoryPointer(index) {
@@ -45,17 +48,21 @@ function generateVnodeKey(componentName, routeKey) {
   return `${componentName}-${routeKey}`
 }
 
-function onRouteChange(current, prev) {
-  const {keyName, componentName} = this.settings
+function onRouteChange(current, prev, messager) {
+  const { keyName, componentName } = this.settings
+  const { history } = this
+  const replace = messager.isReplace()
   const routeKey = current.query[keyName]
   const resolveLast = function () {
-    if (this.history.length) {
-      this.history[this.history.length - 1] = routeKey
+    if (history.length) {
+      history[history.length - 1] = routeKey
     } else {
-      this.history.push(routeKey)
+      history.push(routeKey)
     }
-    setHistoryPointer.call(this, this.history.length - 1)
+    setHistoryPointer.call(this, history.length - 1)
   }
+  
+  messager.reset()
 
   let event = ''
   const deletedKeys = []
@@ -63,35 +70,36 @@ function onRouteChange(current, prev) {
     // page reload
     event = EVENT.RELOAD
     resolveLast.call(this)
-  } else if (current.query[keyName] === prev.query[keyName]) {
+  } else if (replace) {
     // vue-router replace
+    deletedKeys.push(history[history.length - 1])
     event = EVENT.REFRESH
     resolveLast.call(this)
   } else {
-    const index = this.history.indexOf(routeKey)
-    let l = this.history.length
+    const index = history.indexOf(routeKey)
+    let l = history.length
 
     if (index > -1) {
       // navigator backward or forward
       while (--l > index) {
-        deletedKeys.push(this.history[l])
+        deletedKeys.push(history[l])
       }
       setHistoryPointer.call(this, index)
       event = EVENT.BACKWARD
     } else {
       while (--l > this.hisPointer) {
-        let deleted = this.history.splice(l, 1)
+        let deleted = history.splice(l, 1)
         deletedKeys.push(deleted[0])
       }
-      this.history.push(current.query[keyName])
-      setHistoryPointer.call(this, this.history.length - 1)
+      history.push(current.query[keyName])
+      setHistoryPointer.call(this, history.length - 1)
       event = EVENT.FORWARD
     }
   }
 
   deletedKeys.length && this.$nextTick(() => {
     let l = deletedKeys.length - 1
-    let { cache, keys, _vnode } = this
+    let { cache, keys } = this
     while (l >= 0) {
       pruneCacheEntry(cache, generateVnodeKey(componentName, deletedKeys[l--]), keys, this._vnode)
     }
@@ -135,7 +143,7 @@ const EVENT = {
   BACKWARD: 'backward'
 }
 
-export default function ({ componentName, keyName, storageKey }) {
+export default function ({ componentName, keyName, storageKey, messager }) {
   return {
     name: componentName,
     abstract: true,
@@ -155,14 +163,13 @@ export default function ({ componentName, keyName, storageKey }) {
       }
       this.cache = Object.create(null)
       this.keys = []
-      this.lastHistoryIndex = window.history.length
       this.history = JSON.parse(window.sessionStorage[storageKey] || '[]')
-      this.hisPointer = this.history.length - 1;
+      this.hisPointer = this.history.length - 1
     },
 
     watch: {
       $route(current, prev) {
-        onRouteChange.call(this, current, prev)
+        onRouteChange.call(this, current, prev, messager)
       }
     },
 
@@ -188,20 +195,20 @@ export default function ({ componentName, keyName, storageKey }) {
       if (componentOptions) {
         // check pattern
         const name = getComponentName(componentOptions)
-        const { include, exclude, testRoute } = this
+        const { include, exclude, testRoute, $route, max } = this
         if (
           // not included
           (include && (!name || !matches(include, name))) ||
           // excluded
           (exclude && name && matches(exclude, name)) ||
           // completely customized according to routing
-          testRoute && !testRoute(this.$route)
+          testRoute && !testRoute($route)
         ) {
           return vnode
         }
 
         const { cache, keys } = this
-        const routeKey = this.$route.query[keyName]
+        const routeKey = $route.query[keyName]
         const key = generateVnodeKey(componentName, routeKey)
         vnode.key = key
         if (cache[key]) {
@@ -210,7 +217,7 @@ export default function ({ componentName, keyName, storageKey }) {
           cache[key] = vnode
           keys.push(key)
           // prune earliest entry
-          if (this.max && keys.length > parseInt(this.max)) {
+          if (max && keys.length > parseInt(max)) {
             pruneCacheEntry(cache, keys[0], keys, this._vnode)
           }
         }
