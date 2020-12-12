@@ -12,7 +12,8 @@ export default {
         keyName = 'RAK',
         componentName = 'router-alive',
         createKey = _createKey,
-        storageKey = 'router-alive-history'
+        storageKey = 'router-alive-history',
+        debug = false
     } = {}) => {
         if (!router) {
             console.error('router option is required.')
@@ -45,6 +46,6 @@ export default {
                 return onAbort.call(this, ...args)
             }])
         }
-        Vue.component(componentName, Component({ componentName, keyName, storageKey, messager }))
+        Vue.component(componentName, Component({ componentName, keyName, storageKey, messager, debug }))
     }
 }

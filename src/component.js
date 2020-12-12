@@ -44,10 +44,6 @@ function setHistoryPointer(index) {
   appendArrow.call(this)
 }
 
-function generateVnodeKey(componentName, routeKey) {
-  return `${componentName}-${routeKey}`
-}
-
 function onRouteChange(current, prev, messager) {
   const { keyName, componentName } = this.settings
   const { history } = this
@@ -69,7 +65,7 @@ function onRouteChange(current, prev, messager) {
   if (current && prev.query[keyName] === undefined) {
     // page reload
     event = EVENT.RELOAD
-    resolveLast.call(this)
+    !history.length && resolveLast.call(this)
   } else if (replace) {
     // vue-router replace
     deletedKeys.push(history[history.length - 1])
@@ -77,18 +73,18 @@ function onRouteChange(current, prev, messager) {
     resolveLast.call(this)
   } else {
     const index = history.indexOf(routeKey)
-    let l = history.length
+    let l = history.length - 1
 
     if (index > -1) {
       // navigator backward or forward
-      while (--l > index) {
-        deletedKeys.push(history[l])
+      while (l > index) {
+        deletedKeys.push(history[l--])
       }
       setHistoryPointer.call(this, index)
       event = EVENT.BACKWARD
     } else {
-      while (--l > this.hisPointer) {
-        let deleted = history.splice(l, 1)
+      while (l > this.hisPointer) {
+        let deleted = history.splice(l--, 1)
         deletedKeys.push(deleted[0])
       }
       history.push(current.query[keyName])
@@ -97,6 +93,7 @@ function onRouteChange(current, prev, messager) {
     }
   }
 
+  // using $nextTick in case that current node needs to be removed
   deletedKeys.length && this.$nextTick(() => {
     let l = deletedKeys.length - 1
     let { cache, cachedKeys } = this
@@ -142,7 +139,6 @@ function addKeyRelation(routeKey, cacheKey) {
   }
 
   cacheToRoute[cacheKey].push(routeKey)
-  console.log('addKeyRelation', routeToCache, cacheToRoute)
 }
 
 function pruneRouteKeyRelation(routeKey) {
@@ -152,10 +148,10 @@ function pruneRouteKeyRelation(routeKey) {
   if(!routeToCache[routeKey]) return
 
   const cacheKey = routeToCache[routeKey]
-  cacheToRoute[cacheKey].splice(cacheToRoute[cacheKey].indexOf(routeKey), 1)
+  const current = cacheToRoute[cacheKey]
+  current.splice(current.indexOf(routeKey), 1)
   delete routeToCache[routeKey]
-  console.log('pruneRouteKeyRelation', routeToCache, cacheToRoute)
-  if (cacheToRoute[cacheKey].length === 0) {
+  if (current.length === 0) {
     const { cache, cachedKeys, _vnode } = this
     pruneCacheEntry.call(this, cache, cacheKey, cachedKeys, _vnode)
   }
@@ -166,12 +162,12 @@ function pruneCacheKeyRelation(cacheKey) {
   const { routeToCache, cacheToRoute } = keyRelations
   if(!cacheToRoute[cacheKey]) return 
 
-  let l = cacheToRoute[cacheKey].length
-  while (l-- >= 0) {
-    delete routeToCache[l]
+  const current = cacheToRoute[cacheKey]
+  let l = current.length - 1
+  while (l >= 0) {
+    delete routeToCache[current[l--]]
   }
   delete cacheToRoute[cacheKey]
-  console.log('pruneCacheKeyRelation', routeToCache, cacheToRoute)
 }
 
 const EVENT = {
@@ -181,16 +177,22 @@ const EVENT = {
   BACKWARD: 'backward'
 }
 
-export default function ({ componentName, keyName, storageKey, messager }) {
+export default function ({ componentName, keyName, storageKey, messager, debug }) {
   return {
     name: componentName,
-    abstract: true,
+    abstract: !debug,
 
     props: {
       include: [RegExp, Function, Array],
       exclude: [RegExp, Function, Array],
       max: [String, Number],
-      testRoute: [Function]
+      test: [Function]
+    },
+
+    data() {
+      return {
+        keyRelations: {}
+      }
     },
 
     created() {
@@ -206,7 +208,8 @@ export default function ({ componentName, keyName, storageKey, messager }) {
         cacheToRoute: {}
       }
       this.history = JSON.parse(window.sessionStorage[storageKey] || '[]')
-      this.hisPointer = this.history.length - 1
+      // get last state when reload
+      this.hisPointer = this.history.length ? this.history.findIndex(i => i.startsWith(RIGHT_ARROW)) : 0;
     },
 
     watch: {
@@ -237,20 +240,21 @@ export default function ({ componentName, keyName, storageKey, messager }) {
       if (componentOptions) {
         // check pattern
         const name = getComponentName(componentOptions)
-        const { include, exclude, testRoute } = this
+        const { include, exclude, test } = this
         if (
           // not included
           (include && (!name || !matches(include, name))) ||
           // excluded
           (exclude && name && matches(exclude, name)) ||
           // completely customized according to routing
-          testRoute && !testRoute($route)
+          test && !test($route)
         ) {
           return vnode
         }
 
         const { cache, cachedKeys, $route, max } = this
         const routeKey = $route.query[keyName]
+        // generate cache key just like what keep-alive did
         const cacheKey = vnode.key == null
           ? componentOptions.Ctor.cid + (componentOptions.tag ? `::${componentOptions.tag}` : '')
           : vnode.key
@@ -265,11 +269,14 @@ export default function ({ componentName, keyName, storageKey, messager }) {
           }
         }
 
+        // build relation when keep-alive is working
         const prepatch = vnode.data.hook.prepatch
         vnode.data.hook.prepatch = (_, vnode) => {
           addKeyRelation.call(this, routeKey, cacheKey)
           return prepatch.call(this, _, vnode)
         }
+
+        // build relation when component inited
         const init = vnode.data.hook.init
         vnode.data.hook.init = (vnode) => {
           addKeyRelation.call(this, routeKey, cacheKey)
