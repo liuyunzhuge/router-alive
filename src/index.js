@@ -22,18 +22,15 @@ export default {
         }
 
         const history = new History({ Vue, router, storageKey, keyName, messager })
-        history.$on('all', ({ event, removedKeys }) => {
-            console.log(event, removedKeys)
-        })
 
-        let transitionTo = router.history.transitionTo
+        const transitionTo = router.history.transitionTo
         router.history.transitionTo = function (raw, onComplete, onAbort) {
             // when transitionTo executes, vue-router is finishing initing
             history.init()
 
-            let location = typeof raw === 'string' ? { path: raw } : raw
+            const location = typeof raw === 'string' ? { path: raw } : raw
             const parsedPath = parsePath(location.path || '')
-            let query = resolveQuery(
+            const query = resolveQuery(
                 parsedPath.query,
                 location.query,
                 router.options.parseQuery
@@ -47,7 +44,7 @@ export default {
             return transitionTo.apply(this, [location, onComplete, onAbort])
         }
 
-        let replace = router.history.replace
+        const replace = router.history.replace
         router.history.replace = function (raw, onComplete, onAbort) {
             // use messager to transport replace state
             messager.setReplace()

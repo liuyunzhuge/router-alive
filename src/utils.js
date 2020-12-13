@@ -11,7 +11,7 @@ const encode = str => encodeURIComponent(str)
 
 const decode = decodeURIComponent
 
-export function resolveQuery (
+export function resolveQuery(
   query,
   extraQuery,
   _parseQuery
@@ -30,7 +30,7 @@ export function resolveQuery (
   return parsedQuery
 }
 
-function parseQuery (query) {
+function parseQuery(query) {
   const res = {}
 
   query = query.trim().replace(/^(\?|#|&)/, '')
@@ -43,7 +43,7 @@ function parseQuery (query) {
     const parts = param.replace(/\+/g, ' ').split('=')
     const key = decode(parts.shift())
     const val = parts.length > 0
-      ? decode(parts.join('=')) 
+      ? decode(parts.join('='))
       : null
 
     if (res[key] === undefined) {
@@ -58,7 +58,7 @@ function parseQuery (query) {
   return res
 }
 
-export function stringifyQuery (obj) {
+export function stringifyQuery(obj) {
   const res = obj ? Object.keys(obj).map(key => {
     const val = obj[key]
 
@@ -90,7 +90,7 @@ export function stringifyQuery (obj) {
   return res ? `?${res}` : ''
 }
 
-export function parsePath (path) {
+export function parsePath(path) {
   let hash = ''
   let query = ''
 
@@ -114,10 +114,10 @@ export function parsePath (path) {
 }
 
 export function extend(a, b) {
-    for (const key in b) {
-        a[key] = b[key]
-    }
-    return a
+  for (const key in b) {
+    a[key] = b[key]
+  }
+  return a
 }
 
 export function isAsyncPlaceholder(node) {
@@ -134,7 +134,8 @@ export function isRegExp(v) {
 
 export function getFirstComponentChild(children) {
   if (Array.isArray(children)) {
-    for (let i = 0; i < children.length; i++) {
+    let i = 0
+    for (i = 0; i < children.length; i++) {
       const c = children[i]
       if (isDef(c) && (isDef(c.componentOptions) || isAsyncPlaceholder(c))) {
         return c

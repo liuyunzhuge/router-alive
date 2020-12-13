@@ -99,7 +99,7 @@ export default class History {
                 event = EVENT.BACKWARD
             } else {
                 while (l > this.hisPointer) {
-                    let deleted = entries.splice(l--, 1)
+                    const deleted = entries.splice(l--, 1)
                     removedKeys.push(deleted[0].replace(RIGHT_ARROW, ''))
                 }
                 entries.push(current.query[keyName])
