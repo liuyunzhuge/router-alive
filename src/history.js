@@ -53,6 +53,7 @@ export default class History {
     init() {
         if (this._inited) return
         this._inited = true
+        // $watch api turns to be valid after vue component instance has been created
         this.router.app.$on('hook:created', () => {
             this.unwatchRoute = this.router.app.$watch('$route', this.notifyRouteChange.bind(this))
         })

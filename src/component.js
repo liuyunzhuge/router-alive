@@ -85,7 +85,7 @@ function pruneCacheKeyRelation(cacheKey) {
   delete cacheToRoute[cacheKey]
 }
 
-export default function ({ componentName, keyName, storageKey, messager, debug, history }) {
+export default function ({ componentName, keyName, messager, debug, history }) {
   return {
     name: componentName,
     abstract: !debug,
@@ -104,10 +104,6 @@ export default function ({ componentName, keyName, storageKey, messager, debug, 
     },
 
     created() {
-      this.settings = {
-        keyName,
-        storageKey
-      }
       this.cache = Object.create(null)
       this.cachedKeys = []
       this.keyRelations = {
