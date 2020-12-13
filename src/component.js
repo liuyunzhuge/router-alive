@@ -1,6 +1,5 @@
 import { isAsyncPlaceholder, isDef, isRegExp, getComponentName, getFirstComponentChild } from './utils'
-
-const RIGHT_ARROW = '→'
+import { events } from './history'
 
 function remove(arr, item) {
   if (arr.length) {
@@ -20,92 +19,6 @@ function matches(pattern, name) {
     return pattern.test(name)
   }
   return false
-}
-
-function saveHistory() {
-  const { settings, history } = this
-  window.sessionStorage.setItem(settings.storageKey, JSON.stringify(history))
-}
-
-function clearArrow() {
-  const { settings, history, hisPointer } = this
-  if (!history[hisPointer]) return
-  history[hisPointer] = history[hisPointer].replace(RIGHT_ARROW, '')
-}
-
-function appendArrow() {
-  const { settings, history, hisPointer } = this
-  history[hisPointer] = RIGHT_ARROW + history[hisPointer]
-}
-
-function setHistoryPointer(index) {
-  clearArrow.call(this)
-  this.hisPointer = index
-  appendArrow.call(this)
-}
-
-function onRouteChange(current, prev, messager) {
-  const { keyName } = this.settings
-  const { history } = this
-  const replace = messager.isReplace()
-  const routeKey = current.query[keyName]
-  const resolveLast = function () {
-    if (history.length) {
-      history[history.length - 1] = routeKey
-    } else {
-      history.push(routeKey)
-    }
-    setHistoryPointer.call(this, history.length - 1)
-  }
-
-  messager.reset()
-
-  let event = ''
-  const removedKeys = []
-  if (current && prev.query[keyName] === undefined) {
-    // page reload
-    event = EVENT.RELOAD
-    !history.length && resolveLast.call(this)
-  } else if (replace) {
-    // vue-router replace
-    removedKeys.push(history[history.length - 1])
-    event = EVENT.REFRESH
-    resolveLast.call(this)
-  } else {
-    const index = history.indexOf(routeKey)
-    let l = history.length - 1
-
-    if (index > -1) {
-      // navigator backward or forward
-      while (l > index) {
-        removedKeys.push(history[l--])
-      }
-      setHistoryPointer.call(this, index)
-      event = EVENT.BACKWARD
-    } else {
-      while (l > this.hisPointer) {
-        let deleted = history.splice(l--, 1)
-        removedKeys.push(deleted[0])
-      }
-      history.push(current.query[keyName])
-      setHistoryPointer.call(this, history.length - 1)
-      event = EVENT.FORWARD
-    }
-  }
-
-  this.$nextTick(() => {
-    // using $nextTick in case that current node needs to be removed
-    if (removedKeys.length) {
-      let l = removedKeys.length - 1
-      while (l >= 0) {
-        pruneRouteKeyRelation.call(this, removedKeys[l--])
-      }
-    }
-
-    this.printRelations()
-  })
-  this.$emit(event)
-  saveHistory.call(this)
 }
 
 function pruneCache(aliveInstance, filter) {
@@ -145,7 +58,6 @@ function addKeyRelation(routeKey, cacheKey) {
 }
 
 function pruneRouteKeyRelation(routeKey) {
-  routeKey = routeKey.replace(RIGHT_ARROW, '')
   const { keyRelations } = this
   const { routeToCache, cacheToRoute } = keyRelations
   if (!routeToCache[routeKey]) return
@@ -173,14 +85,7 @@ function pruneCacheKeyRelation(cacheKey) {
   delete cacheToRoute[cacheKey]
 }
 
-const EVENT = {
-  RELOAD: 'reload',
-  REFRESH: 'refresh',
-  FORWARD: 'forward',
-  BACKWARD: 'backward'
-}
-
-export default function ({ componentName, keyName, storageKey, messager, debug }) {
+export default function ({ componentName, keyName, storageKey, messager, debug, history }) {
   return {
     name: componentName,
     abstract: !debug,
@@ -209,28 +114,27 @@ export default function ({ componentName, keyName, storageKey, messager, debug }
         routeToCache: {},
         cacheToRoute: {}
       }
-      this.history = JSON.parse(window.sessionStorage[storageKey] || '[]')
-      // get last state when reload
-      this.hisPointer = this.history.length ? this.history.findIndex(i => i.startsWith(RIGHT_ARROW)) : 0;
-    },
 
-    watch: {
-      $route(current, prev) {
-        onRouteChange.call(this, current, prev, messager)
-      }
-    },
+      history.$on(events.ALL, ({ removedKeys }) => {
+        this.$nextTick(() => {
+          // using $nextTick in case that current node needs to be removed
+          if (removedKeys.length) {
+            let l = removedKeys.length - 1
+            while (l >= 0) {
+              pruneRouteKeyRelation.call(this, removedKeys[l--])
+            }
+          }
 
-    methods: {
-      printRelations() {
-        if (!debug) return
-        console.group("routeToCache")
-        console.table(this.keyRelations.routeToCache)
-        console.groupEnd()
+          if (!debug) return
+          console.group("routeToCache")
+          console.table(this.keyRelations.routeToCache)
+          console.groupEnd()
 
-        console.group("cacheToRoute")
-        console.table(this.keyRelations.cacheToRoute)
-        console.groupEnd()
-      }
+          console.group("cacheToRoute")
+          console.table(this.keyRelations.cacheToRoute)
+          console.groupEnd()
+        })
+      })
     },
 
     destroyed() {
@@ -253,6 +157,7 @@ export default function ({ componentName, keyName, storageKey, messager, debug }
       const vnode = getFirstComponentChild(slot)
       const componentOptions = vnode && vnode.componentOptions
       if (componentOptions) {
+
         const { cache, cachedKeys, $route, max } = this
         const routeKey = $route.query[keyName]
         // generate cache key just like what keep-alive did
